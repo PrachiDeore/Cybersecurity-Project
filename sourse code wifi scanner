@@ -1,0 +1,83 @@
+import subprocess
+import platform
+import tkinter as tk
+from tkinter import ttk, messagebox
+
+# Get current OS
+OS_TYPE = platform.system()
+
+# WiFi Scanner class
+class WifiScannerApp:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("🔍 WiFi Network Scanner")
+        self.root.geometry("500x500")
+        self.root.configure(bg="#f9f9f9")
+
+        # Header
+        title = tk.Label(root, text="Available Wi-Fi Networks", font=("Helvetica", 16, "bold"), bg="#f9f9f9")
+        title.pack(pady=15)
+
+        # Scan Button
+        scan_btn = tk.Button(root, text="🔄 Scan Networks", command=self.scan_networks, bg="#4caf50", fg="white",
+                             font=("Helvetica", 11, "bold"))
+        scan_btn.pack(pady=10)
+
+        # Treeview to list networks
+        columns = ("SSID", "Signal")
+        self.tree = ttk.Treeview(root, columns=columns, show="headings", height=15)
+        self.tree.heading("SSID", text="Network Name (SSID)")
+        self.tree.heading("Signal", text="Signal Strength (%)")
+        self.tree.column("SSID", width=300)
+        self.tree.column("Signal", width=150)
+        self.tree.pack(pady=10)
+
+        # Instruction
+        self.info_label = tk.Label(root, text="Click a network to mark as preferred.", font=("Helvetica", 10), bg="#f9f9f9")
+        self.info_label.pack()
+
+        # Bind click on treeview
+        self.tree.bind("<ButtonRelease-1>", self.select_network)
+
+    def scan_networks(self):
+        self.tree.delete(*self.tree.get_children())
+
+        try:
+            if OS_TYPE == "Windows":
+                result = subprocess.check_output(["netsh", "wlan", "show", "networks", "mode=Bssid"], encoding='utf-8')
+                lines = result.split('\n')
+                ssid = ""
+                signal = ""
+                for line in lines:
+                    line = line.strip()
+                    if line.startswith("SSID"):
+                        ssid = line.split(":", 1)[1].strip()
+                    if "Signal" in line:
+                        signal = line.split(":", 1)[1].strip().replace("%", "")
+                        self.tree.insert("", "end", values=(ssid, signal))
+            elif OS_TYPE == "Linux":
+                result = subprocess.check_output(["nmcli", "-t", "-f", "SSID,SIGNAL", "dev", "wifi"], encoding='utf-8')
+                networks = result.strip().split('\n')
+                for net in networks:
+                    if net:
+                        ssid, signal = net.split(":")
+                        ssid = ssid.strip() or "<Hidden>"
+                        self.tree.insert("", "end", values=(ssid, signal))
+            else:
+                messagebox.showerror("Unsupported OS", "This tool only supports Windows and Linux.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Could not scan networks:\n{str(e)}")
+
+    def select_network(self, event):
+        selected = self.tree.focus()
+        values = self.tree.item(selected, "values")
+        if values:
+            ssid, signal = values
+            messagebox.showinfo("Network Selected", f"You selected:\nSSID: {ssid}\nSignal Strength: {signal}%\n\n"
+                                                    f"You can now manually connect from system Wi-Fi settings.")
+
+# Main loop
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = WifiScannerApp(root)
+    root.mainloop()
